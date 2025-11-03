@@ -1,0 +1,1009 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Minecraft Skin Viewer – Fraktionen & Skins</title>
+  <style>
+    :root{
+      --viewer-w: 800px;
+      --viewer-h: 800px;
+      --sidebar-w: 300px;
+      --faction-w: 300px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:system-ui,Segoe UI,Arial,sans-serif;
+      background:url('grafik/background.png') center center fixed no-repeat;
+      background-size:contain;
+      background-color:#000;
+      color:#fff;
+      text-shadow:1px 1px 3px rgba(0,0,0,0.8);
+    }
+    h1{
+      text-align:center;
+      margin:10px 0 0;
+      letter-spacing:0.5px;
+      font-weight:800;
+      font-size:40px;
+    }
+    h2{
+      text-align:center;
+      margin:0 0 10px;
+      font-weight:700;
+      font-size:22px;
+      opacity:0.95;
+    }
+    .layout{
+      display:grid;
+      grid-template-columns: var(--faction-w) 1fr var(--sidebar-w);
+      gap:20px;
+      padding:20px;
+      max-width:1500px;
+      margin:0 auto;
+      align-items:start;
+    }
+
+    /* Fraktionen */
+    .faction-list{
+      display:flex;
+      flex-direction:column;
+      gap:15px;
+    }
+    .faction-item{
+      background:rgba(0,0,0,0.6);
+      border:2px solid rgba(255,255,255,0.2);
+      border-radius:10px;
+      padding:10px;
+      text-align:center;
+      cursor:pointer;
+      transition:all 0.2s ease;
+    }
+    .faction-item:hover{
+      border-color:rgba(255,255,255,0.35);
+      transform:translateY(-2px);
+    }
+    .faction-item.selected{
+      border-color:#6cf;
+      box-shadow:0 0 0 2px rgba(102,204,255,0.25) inset;
+    }
+    .faction-item img{
+      max-width:300%;
+      height:auto;
+      border-radius:8px;
+      display:block;
+      margin:auto;
+    }
+    .faction-item span{
+      display:block;
+      margin-top:10px;
+      font-size:16px;
+      font-weight:bold;
+    }
+
+    /* 3D Viewer */
+    .viewer3d{
+      width:var(--viewer-w);
+      height:var(--viewer-h);
+      max-width:100%;
+      perspective:1200px;
+      background:rgba(0,0,0,0.5);
+      border:1px solid rgba(255,255,255,0.2);
+      border-radius:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      margin:auto;
+      position: relative;
+    }
+    #stage{
+      position:relative;
+      width:520px;
+      height:560px;
+      transform-style:preserve-3d;
+      transform-origin:50% 50%;
+      /* keine CSS-Animation mehr – Rotation läuft rein per JS */
+      will-change: transform;
+    }
+    .part{
+      position:absolute;
+      transform-style:preserve-3d;
+    }
+    .face{
+      position:absolute;
+      backface-visibility:hidden;
+      image-rendering:pixelated;
+      background-repeat:no-repeat;
+    }
+    .front,.back,.left,.right,.top,.bottom{ /* Größen werden per JS gesetzt */ }
+
+    /* Voxel helper */
+    .voxel { pointer-events: none; } /* verhindert Maus-Interferenzen */
+
+    /* Voxel blocks */
+    .voxel {
+      position: absolute;
+      transform-style: preserve-3d;
+      image-rendering: pixelated;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.6), inset 0 0 6px rgba(255,255,255,0.02);
+      pointer-events: none;
+    }
+    .voxel-layer { position: absolute; transform-style: preserve-3d; }
+
+    /* Skin-2D-Vorschau + Buttons rechts unter der 3D-Ansicht */
+    .skin-preview{
+      text-align:center;
+      margin-top:10px;
+    }
+    #skinCanvas{
+      width:256px; height:256px;
+      image-rendering:pixelated;
+      border:1px solid rgba(255,255,255,0.2);
+      border-radius:8px;
+      background:rgba(0,0,0,0.35);
+    }
+    #useSkinBtn, .enter-btn{
+      margin-top:10px;
+      padding:10px 14px;
+      font-size:16px;
+      border:none;
+      border-radius:8px;
+      cursor:pointer;
+      background:#2b7fff;
+      color:#fff;
+    }
+    .enter-btn{
+      display:block;
+      width:260px;
+      margin:10px auto 0;
+      padding:14px 16px;
+      font-size:18px;
+      font-weight:700;
+      background: url('') no-repeat center center;
+      background-size: contain;
+      color:#fff;
+      text-shadow:1px 1px 2px #000;
+    }
+    .sidebar{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      background: url('grafik/book.png') no-repeat center center; background-size: contain; background-position: center; background-repeat: no-repeat;
+      background-size: contain;
+    }
+    .sidebar label{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      background:rgba(0,0,0,0.55);
+      border:1px solid rgba(255,255,255,0.2);
+      border-radius:8px;
+      padding:8px 10px;
+      font-size:14px;
+    }
+    .rot-toggle{
+      margin-top:10px;
+      padding:8px 10px;
+      background:rgba(0,0,0,0.55);
+      border:1px solid rgba(255,255,255,0.2);
+      border-radius:8px;
+      font-size:14px;
+    }
+    input[type="file"]{
+      flex:1;
+      max-width:170px;
+    }
+    button{
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #musicToggle {
+      background: rgba(0,0,0,0.6);
+      border: none;
+      color: #fff;
+      font-size: 24px;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      cursor: pointer;
+      margin-top: 15px;
+    }
+    /* ensure content appears above the background video */
+    .content-above-video {
+      position: relative;
+      z-index: 1;
+    }
+    /* video style class for inserted background video */
+    video.bg-video {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      pointer-events: none;
+      z-index: -1;
+      background-color: #000;
+    }
+  
+/* Logo replacement for Galdreen */
+.logo-container img#galdreenLogo {
+  image-rendering: optimizeQuality;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+</style>
+
+<style>
+#toggleRotationBtn {
+  background: url('grafik/button.png') no-repeat center;
+  background-size: cover;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  color: white;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px black;
+  display: inline-block;
+}
+#toggleRotationBtn:hover {
+  filter: brightness(1.2);
+}
+</style>
+
+</head>
+<body>
+  <div class="content-above-video logo-container" style="text-align:center; margin-top:6px;"><img id="galdreenLogo" src="grafik/galdreen.png" alt="Galdreen" style="max-width:420px; width:60%; height:auto; display:block; margin:0 auto;"></div>
+  <h2 class="content-above-video">Charaktererstellung</h2>
+  <!-- Modell-Auswahl (nur UI, Rest bleibt unverändert) -->
+  <div id="modelSelect" style="text-align:center; margin:10px 0;" class="content-above-video">
+    <label style="margin-right:12px;"><input type="radio" name="modelType" value="steve" checked> Steve</label>
+    <label><input type="radio" name="modelType" value="alex"> Alex</label>
+  </div>
+
+  <div class="layout content-above-video">
+    <!-- Fraktionen -->
+    <div class="faction-list" id="factionList">
+      <div class="faction-item" data-faction="freie">
+        <img src="grafik/abessa.png" alt="Freie Bürgerschaft">
+        <span>Freie Bürgerschaft</span>
+      </div>
+      <div class="faction-item" data-faction="laran">
+        <img src="grafik/brukstedt.png" alt="Laran-Bündnis">
+        <span>Laran-Bündnis</span>
+      </div>
+      <div class="faction-item" data-faction="windfall">
+        <img src="grafik/tavar.png" alt="Windfall-Allianz">
+        <span>Windfall-Allianz</span>
+      </div>
+      <div class="faction-item" data-faction="tiefenbach">
+        <img src="grafik/barohelm.png" alt="Tiefenbach-Allianz">
+        <span>Tiefenbach-Allianz</span>
+      </div>
+    </div>
+
+    <!-- 3D Viewer + Skin Vorschau -->
+    <div>
+
+<div class="viewer3d">
+  <div id="stageWrapper" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);"><div id="stage"></div></div>
+<div style="position:absolute; left:50%; bottom:15px; transform:translateX(-50%);">
+  <button id="toggleRotationBtn"
+          style="background:url('grafik/button.png') no-repeat center; background-size:contain;
+                 border:none; width:260px; height:48px; cursor:pointer; color:#fff;
+                 font-weight:bold; text-shadow:1px 1px 2px #000;">
+    drehen/anhalten
+  </button>
+</div>
+
+<div style="margin-top:10px;">
+
+</div>
+
+  <div style="width:100%; text-align:center; margin-top:10px;">
+
+  </div>
+</div>
+<div style="text-align:center; margin-top:10px;"></div>
+
+<div class="skin-preview">
+        <canvas id="skinCanvas" width="256" height="256"></canvas>
+<div id="saveSkinContainer" style="text-align:center; margin-top:10px;">
+  <button id="saveSkinBtn"
+          style="background:url('grafik/button.png') no-repeat center; background-size:contain; 
+                 border:none; width:260px; height:48px; cursor:pointer; color:#fff; 
+                 font-weight:bold; text-shadow:1px 1px 2px #000;">
+    Skin speichern
+  </button>
+</div>
+
+        <div style="text-align:center;"><div style="text-align:center;"></div></div>
+        <br>
+        <button id="musicToggle" title="Musik An/Aus">🔊</button>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+  <div style="margin-bottom:8px;">
+
+    <button id="nextSkinBtn" style="display:none;">Weiter</button>
+  </div>
+  <label>Hautfarbe:<input type="file" accept="image/png" id="file1"></label>
+  <label>Gesicht:<input type="file" accept="image/png" id="file2"></label>
+  <label>Haare:<input type="file" accept="image/png" id="file3"></label>
+  <label>Oberkörper:<input type="file" accept="image/png" id="file4"></label>
+  <label>Beine:<input type="file" accept="image/png" id="file5"></label>
+  <label>Schuhe:<input type="file" accept="image/png" id="file6"></label>
+  <label>Schmuck:<input type="file" accept="image/png" id="file7"></label>
+  <label>fremder Skin:<input type="file" accept="image/png" id="file8"></label>
+
+</aside>
+  </div>
+
+  <script>
+
+    // -------------------- Fraktion-Auswahl (unverändert) --------------------
+    const factionList = document.getElementById('factionList');
+    factionList.addEventListener('click', e => {
+      const item = e.target.closest('.faction-item');
+      if(!item) return;
+      factionList.querySelectorAll('.faction-item').forEach(el => el.classList.remove('selected'));
+      item.classList.add('selected');
+    });
+
+    // -------------------- Skin-Layer Laden & Mergen (unverändert) --------------------
+    const fileEls = [
+      document.getElementById('file1'), document.getElementById('file2'),
+      document.getElementById('file3'), document.getElementById('file4'),
+      document.getElementById('file5'), document.getElementById('file6'),
+      document.getElementById('file7'), document.getElementById('file8')
+    ];
+    const skins = Array(8).fill(null);
+    let currentImg = null;
+
+    function loadFileAsImage(file, cb){
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => cb(img);
+      img.onerror = () => alert('Bild konnte nicht geladen werden. Bitte PNG 64x64 verwenden.');
+      img.src = url;
+    }
+    function drawSkinPreview(img){
+      const skinCanvas = document.getElementById('skinCanvas');
+      const skinCtx = skinCanvas.getContext('2d');
+      skinCtx.clearRect(0,0,skinCanvas.width,skinCanvas.height);
+      skinCtx.imageSmoothingEnabled = false;
+      skinCtx.drawImage(img, 0, 0, skinCanvas.width, skinCanvas.height);
+    }
+    function mergeSkins(){
+  let hasImage = skins.some(img => img && img.src);
+  if (!hasImage) {
+    console.warn('Keine Layer geladen – lade Fallback skin/haut01.png');
+    const img = new Image();
+    img.onload = () => { currentImg = img; drawSkinPreview(img); build3D(img); };
+    img.src = "skin/haut01.png";
+    return;
+  }
+  try {
+      const c = document.createElement('canvas');
+      c.width = 64; c.height = 64;
+      const ctx = c.getContext('2d');
+
+      // Reihenfolge: file1 unten, file8 oben
+      for(let i=0;i<skins.length;i++){
+        const img = skins[i];
+        if(!img) continue;
+        ctx.drawImage(img, 0,0);
+      }
+      const merged = new Image();
+      merged.onload = () => { currentImg = merged; drawSkinPreview(merged); setTimeout(() => build3D(merged), 0); };
+      merged.src = c.toDataURL('image/png');
+  } catch(e) {
+    console.error('mergeSkins Fehler:', e);
+    const fallback = skins.find(img => img && img.src) || new Image();
+    if (!fallback.src) fallback.src = "skin/haut01.png";
+    fallback.onload = () => { currentImg = fallback; drawSkinPreview(fallback); build3D(fallback); };
+    if (fallback.complete) { currentImg = fallback; drawSkinPreview(fallback); build3D(fallback); }
+    return;
+  }
+
+    }
+
+// -------------------- Hautfarbe-Button (statt Dateiupload #file1) --------------------
+(function(){
+  const hautfarben = ["skin/haut01.png","skin/hautfarbe2.png","skin/hautfarbe3.png","skin/hautfarbe4.png"];
+  let hautIndex = 0;
+
+  function setHautfarbe(index){
+    const img = new Image();
+    img.onload = () => {
+      if (img.width !== 64 || img.height !== 64) {
+        alert("Nur 64x64 Skins werden unterstützt.");
+        return;
+      }
+      skins[0] = img;   // Layer 0 (ersetzt file1)
+      mergeSkins();     // löst Preview + build3D aus
+    };
+    img.onerror = () => console.warn("Konnte Skin nicht laden:", hautfarben[index]);
+    img.src = hautfarben[index];
+  }
+
+  const btn = document.getElementById("nextSkinBtn");
+  if (btn) {
+    btn.addEventListener("click", () => {
+      setHautfarbe(hautIndex);
+      hautIndex = (hautIndex + 1) % hautfarben.length;
+    });
+    // Direkt beim Laden den ersten Skin setzen:
+    setHautfarbe(0);
+  } else {
+    console.warn("nextSkinBtn nicht gefunden – Hautfarbe-Button wurde nicht gerendert.");
+  }
+})();
+fileEls.forEach((inp,i) => {
+      inp.addEventListener('change', () => {
+        const file = inp.files[0];
+        if(!file) return;
+        if(file.type !== 'image/png'){ alert('Bitte PNG-Datei verwenden.'); return; }
+        loadFileAsImage(file, (img) => {
+          if(img.width !== 64 || img.height !== 64){ alert('Nur 64x64 werden unterstützt.'); return; }
+          skins[i] = img;
+          mergeSkins();
+        });
+      });
+    });
+
+    // -------------------- Utils für 3D-Ansicht --------------------
+    const stage = document.getElementById('stage');
+let toggleRot = document.getElementById('toggleRot');
+// Fallback, falls die Checkbox fehlt
+if(!toggleRot){
+  toggleRot = { checked:true, addEventListener:()=>{} };
+}
+function regionTransparent(img, sx, sy, sw, sh){
+      const c = document.createElement('canvas');
+      c.width = sw; c.height = sh;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+      const data = ctx.getImageData(0,0,sw,sh).data;
+      for(let i=3;i<data.length;i+=4){ if(data[i] !== 0) return false; }
+      return true;
+    }
+
+    // -------------------- 3D-Parameter & Mappings --------------------
+    const S = 16; // Größe pro Skin-Pixel
+    const OVERLAY_INFLATE = 0.6; // Overlay-Würfel minimal "aufblasen", um Z-Fighting zu vermeiden
+
+    const dim = {
+      head:{w:8*S, h:8*S, d:8*S},
+      body:{w:8*S, h:12*S, d:4*S},
+      arm :{w:4*S, h:12*S, d:4*S},   // wird bei Alex auf 3*S gesetzt
+      leg :{w:4*S, h:12*S, d:4*S}
+    };
+
+    // UV-Maps für Java 64x64 (Steve-Standard)
+    const tex = {
+      head:{front:[8,8,8,8], back:[24,8,8,8], left:[0,8,8,8], right:[16,8,8,8], top:[8,0,8,8], bottom:[16,0,8,8]},
+      body:{front:[20,20,8,12], back:[32,20,8,12], left:[16,20,4,12], right:[28,20,4,12], top:[20,16,8,4], bottom:[28,16,8,4]},
+      armR:{front:[44,20,4,12], back:[52,20,4,12], left:[40,20,4,12], right:[48,20,4,12], top:[44,16,4,4], bottom:[48,16,4,4]},
+      armL:{front:[36,52,4,12], back:[44,52,4,12], left:[32,52,4,12], right:[40,52,4,12], top:[36,48,4,4], bottom:[40,48,4,4]},
+      legR:{front:[4,20,4,12],  back:[12,20,4,12], left:[0,20,4,12],  right:[8,20,4,12],  top:[4,16,4,4],  bottom:[8,16,4,4]},
+      legL:{front:[20,52,4,12], back:[28,52,4,12], left:[16,52,4,12], right:[24,52,4,12], top:[20,48,4,4], bottom:[24,48,4,4]}
+    };
+    const texO = {
+      head:{front:[40,8,8,8], back:[56,8,8,8], left:[32,8,8,8], right:[48,8,8,8], top:[40,0,8,8], bottom:[48,0,8,8]},
+      body:{front:[20,36,8,12], back:[32,36,8,12], left:[16,36,4,12], right:[28,36,4,12], top:[20,32,8,4], bottom:[28,32,8,4]},
+      armR:{front:[44,36,4,12], back:[52,36,4,12], left:[40,36,4,12], right:[48,36,4,12], top:[44,32,4,4], bottom:[48,32,4,4]},
+      armL:{front:[52,52,4,12], back:[60,52,4,12], left:[48,52,4,12], right:[56,52,4,12], top:[52,48,4,4], bottom:[56,48,4,4]},
+      legR:{front:[4,36,4,12],  back:[12,36,4,12], left:[0,36,4,12],  right:[8,36,4,12],  top:[4,32,4,4],  bottom:[8,32,4,4]},
+      legL:{front:[4,52,4,12],  back:[12,52,4,12], left:[0,52,4,12],  right:[8,52,4,12],  top:[4,48,4,4],  bottom:[8,48,4,4]}
+    };
+
+    // Alex-Arme (schmal, 3px)
+    const texAlexArms = {
+      armR:{front:[44,20,3,12], back:[51,20,3,12], left:[47,20,4,12], right:[40,20,4,12], top:[44,16,3,4], bottom:[47,16,3,4]},
+      armL:{front:[36,52,3,12], back:[43,52,3,12], left:[39,52,4,12], right:[32,52,4,12], top:[36,48,3,4], bottom:[39,48,3,4]}
+    };
+    const texOverlayAlexArms = {
+      armR:{front:[44,36,3,12], back:[51,36,3,12], left:[47,36,4,12], right:[40,36,4,12], top:[44,32,3,4], bottom:[47,32,3,4]},
+      armL:{front:[52,52,3,12], back:[59,52,3,12], left:[55,52,4,12], right:[48,52,4,12], top:[52,48,3,4], bottom:[55,48,3,4]}
+    };
+
+    function applyFaceStyle(el, img, sx, sy, sw, sh, bgW, bgH){
+      el.style.width  = (sw*S) + 'px';
+      el.style.height = (sh*S) + 'px';
+      el.style.backgroundImage = `url(${img.src})`;
+      el.style.backgroundSize  = `${bgW}px ${bgH}px`;
+      el.style.backgroundPosition = `${-(sx*S)}px ${-(sy*S)}px`;
+      el.style.imageRendering = 'pixelated';
+    }
+
+    function makePart(img, d, t, left, top, opts={}, inflate=0){
+      const { mirrorX=false, swapLR=false, topLowerPx=0 } = opts;
+      const bgW = img.naturalWidth * S;
+      const bgH = img.naturalHeight * S;
+
+      const part = document.createElement('div');
+      part.className = 'part';
+      part.style.left = left + 'px';
+      part.style.top  = top  + 'px';
+
+      // FRONT
+      const f = document.createElement('div'); f.className = 'face front';
+      applyFaceStyle(f, img, ...t.front, bgW, bgH);
+      f.style.transform = `${mirrorX? 'scaleX(-1) ' : ''}translateZ(${d.d/2 + inflate}px)`;
+      part.appendChild(f);
+
+      // BACK
+      const bk = document.createElement('div'); bk.className = 'face back';
+      applyFaceStyle(bk, img, ...t.back, bgW, bgH);
+      bk.style.transform = `${mirrorX? 'scaleX(-1) ' : ''}rotateY(180deg) translateZ(${d.d/2 + inflate}px)`;
+      part.appendChild(bk);
+
+      // LEFT
+      const l = document.createElement('div'); l.className = 'face left';
+      const leftMap  = swapLR ? t.right : t.left;
+      applyFaceStyle(l, img, ...leftMap, bgW, bgH);
+      l.style.transform = `rotateY(-90deg) translateZ(${d.w/2 + inflate}px)`;
+      part.appendChild(l);
+
+      // RIGHT
+      const r = document.createElement('div'); r.className = 'face right';
+      const rightMap = swapLR ? t.left  : t.right;
+      applyFaceStyle(r, img, ...rightMap, bgW, bgH);
+      r.style.transform = `rotateY(90deg) translateZ(${d.w/2 + inflate}px)`;
+      part.appendChild(r);
+
+      // TOP
+      const tp = document.createElement('div'); tp.className = 'face top';
+      applyFaceStyle(tp, img, ...t.top, bgW, bgH);
+      tp.style.transform = `rotateX(90deg) translateZ(${d.h/2 + inflate - (topLowerPx*S)}px)`;
+      part.appendChild(tp);
+
+      // BOTTOM
+      const bt = document.createElement('div'); bt.className = 'face bottom';
+      applyFaceStyle(bt, img, ...t.bottom, bgW, bgH);
+      bt.style.transform = `rotateX(-90deg) translate3d(0px, ${d.h/2 + inflate}px, 0px)`;
+      part.appendChild(bt);
+
+      return part;
+    }
+
+    // -------------------- Overlay Oriented Voxel Mesh --------------------
+
+
+    function makeOverlayMesh(img, uvMap, d, left, top, opts={}) {
+      // Create overlay parts with a solid, voxel-like appearance.
+      // Keeps alignment of overlay faces, but adds inner faces to create thickness.
+      const { mirrorX=false, swapLR=false, topLowerPx=0 } = opts;
+      const part = document.createElement('div');
+      part.className = 'part';
+      part.style.left = left + 'px';
+      part.style.top  = top  + 'px';
+
+      const bgW = img.naturalWidth * S;
+      const bgH = img.naturalHeight * S;
+      const inflatePx = (typeof OVERLAY_INFLATE !== 'undefined' ? OVERLAY_INFLATE : 0.6) * S;
+      const thickness = (typeof OVERLAY_THICKNESS !== 'undefined' ? OVERLAY_THICKNESS : 0.8) * S;
+
+      function makeOverlayFace(cls, uv, rot, tz) {
+        const f = document.createElement('div');
+        f.className = 'face ' + cls;
+        applyFaceStyle(f, img, ...uv, bgW, bgH);
+        f.style.transform = `${mirrorX? 'scaleX(-1) ' : ''}${rot} translateZ(${tz}px)`;
+        return f;
+      }
+
+      // FRONT outer & inner
+      part.appendChild(makeOverlayFace('front outer', uvMap.front, '', d.d/2 + inflatePx));
+      part.appendChild(makeOverlayFace('front inner', uvMap.front, '', d.d/2 - thickness));
+
+      // BACK outer & inner
+      part.appendChild(makeOverlayFace('back outer', uvMap.back, 'rotateY(180deg) ', d.d/2 + inflatePx));
+      part.appendChild(makeOverlayFace('back inner', uvMap.back, 'rotateY(180deg) ', d.d/2 - thickness));
+
+      // LEFT outer & inner
+      const leftMap = swapLR ? uvMap.right : uvMap.left;
+      part.appendChild(makeOverlayFace('left outer', leftMap, 'rotateY(-90deg) ', d.w/2 + inflatePx));
+      part.appendChild(makeOverlayFace('left inner', leftMap, 'rotateY(-90deg) ', d.w/2 - thickness));
+
+      // RIGHT outer & inner
+      const rightMap = swapLR ? uvMap.left : uvMap.right;
+      part.appendChild(makeOverlayFace('right outer', rightMap, 'rotateY(90deg) ', d.w/2 + inflatePx));
+      part.appendChild(makeOverlayFace('right inner', rightMap, 'rotateY(90deg) ', d.w/2 - thickness));
+
+      // TOP outer & inner
+      part.appendChild(makeOverlayFace('top outer', uvMap.top, 'rotateX(90deg) ', d.h/2 + inflatePx - (topLowerPx*S)));
+      part.appendChild(makeOverlayFace('top inner', uvMap.top, 'rotateX(90deg) ', d.h/2 - thickness - (topLowerPx*S)));
+
+      // BOTTOM outer & inner
+      part.appendChild(makeOverlayFace('bottom outer', uvMap.bottom, 'rotateX(-90deg) ', d.h/2 + inflatePx));
+      part.appendChild(makeOverlayFace('bottom inner', uvMap.bottom, 'rotateX(-90deg) ', d.h/2 - thickness));
+
+      return part;
+    }
+
+    // -------------------- 3D-Aufbau --------------------
+    let angleY = 0;
+    let angleX = -10; // slight tilt for better 3D view
+    let rotating = toggleRot.checked;
+    let lastTs = null;
+    const DEG_PER_SEC = 36; // 360° in 10s – wie vorher
+
+    // -------------------- Maussteuerung für 3D-Drehung --------------------
+    (function(){
+      let isDragging = false; let prevX = 0; let prevY = 0;
+      stage.addEventListener('pointerdown', e => { isDragging = true; prevX = e.clientX; prevY = e.clientY; e.preventDefault(); });
+      window.addEventListener('pointerup', () => { isDragging = false; });
+      window.addEventListener('pointermove', e => {
+        if(!isDragging) return;
+        const dx = e.clientX - prevX; const dy = e.clientY - prevY;
+        prevX = e.clientX; prevY = e.clientY;
+        angleY += dx * 0.5;
+        angleX -= dy * 0.3;
+        stage.style.transform = `rotateX(${angleX}deg) rotateY(${angleY}deg)`;
+      });
+      // wheel to zoom (adjust stageWrapper translateZ via scale)
+      const wrapper = document.getElementById('stageWrapper');
+      let scale = 1.0;
+      wrapper.addEventListener('wheel', e => {
+        scale *= (e.deltaY > 0) ? 0.95 : 1.05;
+        scale = Math.max(0.6, Math.min(2.0, scale));
+        wrapper.style.transform = `translate(-50%,-50%) scale(${scale})`;
+        e.preventDefault();
+      });
+    })();
+
+    function build3D(img){
+  if(!img){ console.warn('build3D ohne Bild aufgerufen'); return; }
+
+      stage.innerHTML = '';
+      // Modelltyp aus Checkboxen (Steve/Alex) ermitteln
+      const modelSel = document.querySelector('input[name="modelType"]:checked');
+      const modelType = modelSel ? modelSel.value : 'steve';
+
+      // Arm-Breite je nach Modell (Steve 4px, Alex 3px)
+      dim.arm.w = (modelType === 'alex' ? 3*S : 4*S);
+
+      // UV-Mapping für Arme je nach Modell wählen (Kopf/Körper/Beine bleiben gleich)
+      const TEX  = (modelType === 'alex') ? Object.assign({}, tex, { armR: texAlexArms.armR, armL: texAlexArms.armL }) : tex;
+      const TEXO = (modelType === 'alex') ? Object.assign({}, texO, { armR: texOverlayAlexArms.armR, armL: texOverlayAlexArms.armL }) : texO;
+
+      const stageW = stage.clientWidth;
+      const centerX = stageW / 2;
+
+      // Grundpositionen
+      const headX = Math.round(centerX - dim.head.w/2);
+      const headY = 0;
+      const bodyX = Math.round(centerX - dim.body.w/2);
+      const bodyY = headY + dim.head.h;
+      const lArmX = bodyX - dim.arm.w;           // linker Arm links anliegend
+      const rArmX = bodyX + dim.body.w;          // rechter Arm rechts anliegend
+      const armsY = bodyY;
+      const legsY = bodyY + dim.body.h;
+      const lLegX = bodyX;                       // linkes Bein unter linker Körperhälfte
+      const rLegX = bodyX + dim.leg.w;           // rechtes Bein unter rechter Körperhälfte
+
+      // Erkennen, ob L/R-Armtexturen (separat) vorhanden sind
+      const armFrontW = (modelType === 'alex' ? 3 : 4);
+      const hasR = !regionTransparent(img, 44,20,armFrontW,12) || !regionTransparent(img, 44,16,armFrontW,4);
+      const hasL = !regionTransparent(img, 36,52,armFrontW,12) || !regionTransparent(img, 36,48,armFrontW,4);
+
+      // HEAD
+      const head    = makePart(img, dim.head, TEX.head, headX, headY);
+      const headOv  = makeOverlayMesh(img, TEXO.head, dim.head, headX, headY, {});
+
+      // BODY
+      const body    = makePart(img, dim.body, TEX.body, bodyX, bodyY);
+      const bodyOv  = makeOverlayMesh(img, TEXO.body, dim.body, bodyX, bodyY, {});
+
+      // ARMS (wie in deiner Vorlage – korrekt anliegend)
+      let armLTex, armLOpts={}, armRTex, armROpts={};
+      if (hasR){
+        armLTex = TEX.armR;                 // linker Arm nutzt R-Mapping, wenn vorhanden
+        armRTex = TEX.armL;                 // rechter Arm nutzt L-Mapping
+      } else if (hasL){
+        armLTex = TEX.armL; armLOpts = {mirrorX:true, swapLR:true};
+        armRTex = TEX.armR; armROpts = {mirrorX:true, swapLR:true};
+      } else {
+        armLTex = TEX.armR;
+        armRTex = TEX.armL;
+      }
+      const armL   = makePart(img, dim.arm, armLTex, lArmX, armsY, Object.assign({}, armLOpts, {topLowerPx:4}));
+      const armR   = makePart(img, dim.arm, armRTex, rArmX, armsY, Object.assign({}, armROpts, {topLowerPx:4}));
+      const armLO  = makeOverlayMesh(img, (armLTex===TEX.armR?TEXO.armR:TEXO.armL), dim.arm, lArmX, armsY, {topLowerPx:4});
+      const armRO  = makeOverlayMesh(img, (armRTex===TEX.armR?TEXO.armR:TEXO.armL), dim.arm, rArmX, armsY, {topLowerPx:4});
+
+      // LEGS — GETAUSCHT (rechtes Mapping links, linkes rechts)
+      const legL   = makePart(img, dim.leg, TEX.legR, lLegX, legsY);
+      const legR   = makePart(img, dim.leg, TEX.legL, rLegX, legsY);
+      const legLO  = makeOverlayMesh(img, TEXO.legR, dim.leg, lLegX, legsY, {});
+      const legRO  = makeOverlayMesh(img, TEXO.legL, dim.leg, rLegX, legsY, {});
+
+      // Reihenfolge wichtig (Base vor Overlay)
+      stage.append(
+        head, body, armL, armR, legL, legR,
+        headOv, bodyOv, armLO, armRO, legLO, legRO
+      );
+
+      // aktuelle Rotation anwenden (nicht resetten)
+      stage.style.transform = `rotateY(${angleY}deg)`;
+    }
+
+    // -------------------- Rotation per JS (bleibt stehen beim Stoppen) --------------------
+    function animate(ts){
+      if(!rotating){ lastTs = null; return; }
+      if(lastTs == null) lastTs = ts;
+      const dt = (ts - lastTs)/1000;
+      lastTs = ts;
+
+      angleY += dt * DEG_PER_SEC;
+      if(angleY >= 360) angleY -= 360;
+
+      stage.style.transform = `rotateY(${angleY}deg)`;
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+
+    toggleRot.addEventListener('change', () => {
+      rotating = toggleRot.checked;
+      if(rotating){
+        requestAnimationFrame(animate);
+      }
+    });
+
+    // Checkboxen für Modelltyp -> 3D neu bauen
+    document.addEventListener('change', (e) => {
+      const t = e.target;
+      if (t && t.name === 'modelType') {
+        if (currentImg) build3D(currentImg);
+      }
+    });
+
+    // -------------------- Default-Skin laden --------------------
+    (function(){
+  const img = new Image();
+  img.onload = () => {
+    skins[0] = img;
+    try{ mergeSkins(); }catch(e){ console.warn('mergeSkins Fehler, baue direkt 3D:', e); drawSkinPreview(img); build3D(img); }
+  };
+  img.onerror = () => console.warn("Default-Skin konnte nicht geladen werden: skin/haut01.png");
+  img.src = "skin/haut01.png";
+})();
+
+    // -------------------- Musik Button (unverändert) --------------------
+    const musicToggle = document.getElementById('musicToggle');
+    const bgMusic = new Audio('musik.mp3'); // eigene Musikdatei
+    bgMusic.loop = true;
+    let musicOn = false;
+    musicToggle.addEventListener('click', () => {
+      musicOn = !musicOn;
+      musicToggle.textContent = musicOn ? '🔈' : '🔊';
+      if(musicOn) { bgMusic.play(); } else { bgMusic.pause(); }
+    });
+
+// -------------------- Extra-Button über "Hautfarbe" --------------------
+(function(){
+  const extraBtn = document.getElementById("extraSkinBtn");
+  const nextBtn = document.getElementById("nextSkinBtn");
+  if (extraBtn && nextBtn) {
+    extraBtn.addEventListener("click", () => {
+      nextBtn.click();
+    });
+  }
+})();
+</script>
+
+
+
+
+
+<script>
+['file6','file7','file8'].forEach(fid => {
+  const inp = document.getElementById(fid);
+  if(inp){
+    inp.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if(file){
+        const img = new Image();
+        img.onload = () => {
+          if(img.width !== 64 || img.height !== 64){
+            console.warn(fid + ': Bild ist nicht 64x64, 3D-Ansicht könnte fehlschlagen');
+          }
+        };
+        img.src = URL.createObjectURL(file);
+      }
+    });
+  }
+});
+</script>
+
+
+<script>
+(function(){
+  const categories = {
+    "file1": ["skin/haut01.png","skin/haut02.png","skin/haut03.png","skin/haut04.png","skin/haut05.png","skin/haut06.png","skin/haut07.png","skin/haut08.png","skin/haut09.png","skin/haut10.png"],
+    "file2": ["skin/gesicht01.png","skin/gesicht02.png","skin/gesicht03.png","skin/gesicht04.png","skin/gesicht05.png","skin/gesicht06.png","skin/gesicht07.png","skin/gesicht08.png","skin/gesicht09.png"],
+    "file3": ["skin/haar01.png","skin/haar02.png","skin/haar03.png","skin/haar04.png","skin/haar05.png","skin/haar06.png","skin/haar07.png","skin/haar08.png","skin/haar09.png"],
+    "file4": ["skin/torso01.png","skin/torso02.png","skin/torso03.png","skin/torso04.png","skin/torso05.png","skin/torso06.png","skin/torso07.png","skin/torso08.png","skin/torso09.png","skin/torso10.png","skin/torso11.png","skin/torso12.png","skin/torso13.png"],
+    "file5": ["skin/beine01.png","skin/beine02.png","skin/beine03.png","skin/beine04.png","skin/beine05.png","skin/beine06.png","skin/beine07.png","skin/beine08.png","skin/beine09.png","skin/beine10.png","skin/beine11.png","skin/beine12.png","skin/beine13.png"],
+    "file6": ["skin/schuhe01.png","skin/schuhe02.png","skin/schuhe03.png","skin/schuhe04.png","skin/schuhe05.png","skin/schuhe06.png","skin/schuhe07.png","skin/schuhe08.png","skin/schuhe09.png","skin/schuhe13.png"],
+    "file7": ["skin/schmuck01.png","skin/schmuck02.png","skin/schmuck03.png","skin/schmuck04.png","skin/schmuck05.png","skin/schmuck06.png","skin/schmuck07.png","skin/schmuck08.png","skin/schmuck09.png"]
+  };
+  const idx = {}, skinsInit = [];
+  Object.keys(categories).forEach(id => {
+    idx[id] = 0;
+    const inp = document.getElementById(id);
+    if (!inp) return;
+    // Make sure we don't insert duplicates if this script runs twice
+    if (inp.previousElementSibling && inp.previousElementSibling.dataset && inp.previousElementSibling.dataset.arrowpair === '1') return;
+
+    inp.style.display = "none";
+
+    const fallback = new Image();
+    if(id === "file1") fallback.src = "skin/haut01.png";
+    else fallback.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAJ0lEQVR4nO3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAAAAAIB3A0BAAAGP8slRAAAAAElFTkSuQmCC";
+    skinsInit[parseInt(id.replace("file","")) - 1] = fallback;
+
+    const btnContainer = document.createElement("div");
+    btnContainer.style.display = "inline-flex";
+    btnContainer.style.gap = "6px";
+    btnContainer.dataset.arrowpair = "1";
+
+    const leftBtn = document.createElement("button");
+    leftBtn.type = "button";
+    leftBtn.style.background = "none";
+    leftBtn.style.border = "none";
+    leftBtn.style.cursor = "pointer";
+    leftBtn.innerHTML = '<img src="grafik/pfeil_links.png" alt="prev" style="height:22px;">';
+    leftBtn.addEventListener("click", () => {
+      const arr = categories[id];
+      idx[id] = (idx[id] - 1 + arr.length) % arr.length;
+      const img = new Image();
+      img.onload = () => {
+        if (typeof skins !== "undefined") {
+          const layerIndex = parseInt(id.replace("file","")) - 1;
+          skins[layerIndex] = img;
+          mergeSkins();
+        }
+      };
+      img.src = arr[idx[id]];
+    });
+
+    const rightBtn = document.createElement("button");
+    rightBtn.type = "button";
+    rightBtn.style.background = "none";
+    rightBtn.style.border = "none";
+    rightBtn.style.cursor = "pointer";
+    rightBtn.innerHTML = '<img src="grafik/pfeil_rechts.png" alt="next" style="height:22px;">';
+    rightBtn.addEventListener("click", () => {
+      const arr = categories[id];
+      idx[id] = (idx[id] + 1) % arr.length;
+      const img = new Image();
+      img.onload = () => {
+        if (typeof skins !== "undefined") {
+          const layerIndex = parseInt(id.replace("file","")) - 1;
+          skins[layerIndex] = img;
+          mergeSkins();
+        }
+      };
+      img.src = arr[idx[id]];
+    });
+
+    btnContainer.appendChild(leftBtn);
+    btnContainer.appendChild(rightBtn);
+    inp.parentNode.insertBefore(btnContainer, inp);
+  });
+
+  // Skins global setzen (nur beim ersten Mal)
+  if (typeof skins !== "undefined") {
+    let anySet = false;
+    for(let i=0;i<skinsInit.length;i++) {
+      if(!skins[i]) { skins[i] = skinsInit[i]; anySet = true; }
+    }
+    if(anySet) mergeSkins();
+  }
+})();
+</script>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  // Drehen/Anhalten
+  var tBtn = document.getElementById('toggleRotationBtn');
+  if (tBtn) {
+    tBtn.addEventListener('click', function(){
+      try {
+        if (typeof rotating === 'undefined') window.rotating = true;
+        rotating = !rotating;
+        if (rotating && typeof animate === 'function') {
+          requestAnimationFrame(animate);
+        }
+      } catch(e){ console.warn('Toggle Rotation Fehler:', e); }
+    });
+  }
+
+  // Skin speichern (64x64 mit Zeitstempel)
+  var sBtn = document.getElementById('saveSkinBtn');
+  if (sBtn) {
+    sBtn.addEventListener('click', function(){
+      try {
+        if (typeof currentImg === 'undefined' || !currentImg) {
+          alert('Kein Skin zum Speichern vorhanden.');
+          return;
+        }
+        var c = document.createElement('canvas');
+        c.width = 64; c.height = 64;
+        var ctx = c.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(currentImg, 0, 0, 64, 64);
+        var a = document.createElement('a');
+        a.href = c.toDataURL('image/png');
+        var ts = new Date().toISOString().replace(/[:.]/g, '-');
+        a.download = 'skin_' + ts + '.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } catch(e){ console.warn('Skin speichern Fehler:', e); }
+    });
+  }
+});
+</script>
+
+
+
+
+
+
+<!-- === Fix: Hintergrundvideos für alle Fraktionen (funktionierende Zuordnung) === -->
+<script>
+(function(){
+  const factionVideos = {
+    "tiefenbach-allianz": "grafik/barohelm_hintergrund.mp4",
+    "tiefenbach":          "grafik/barohelm_hintergrund.mp4",
+    "windfall-allianz":    "grafik/tavar_hintergrund.mp4",
+    "windfall":            "grafik/tavar_hintergrund.mp4",
+    "laran-bündnis":       "grafik/laran_hintergrund.mp4",
+    "laran":               "grafik/laran_hintergrund.mp4",
+    "freie bürgerschaft":  "grafik/abessa_hintergrund.mp4",
+    "freie":               "grafik/abessa_hintergrund.mp4"
+  };
+
+  function removeBgVideo() {
+    const v = document.querySelector('video.bg-video');
+    if (v) { v.pause(); v.remove(); }
+  }
+
+  function playBgVideo(src) {
+    removeBgVideo();
+    const video = document.createElement('video');
+    video.className = 'bg-video';
+    video.src = src;
+    video.autoplay = true;
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+    document.body.prepend(video);
+    video.play().catch(err=>{
+      console.warn('Autoplay blockiert:', err);
+      video.muted = true;
+      video.play().catch(()=>{});
+    });
+  }
+
+  document.querySelectorAll('.faction-item').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const key1 = (btn.dataset.faction || '').trim().toLowerCase();
+      const key2 = (btn.querySelector('span')?.textContent || '').trim().toLowerCase();
+      const videoSrc = factionVideos[key1] || factionVideos[key2];
+      if (videoSrc) playBgVideo(videoSrc);
+      else console.warn('Kein Video für', key1, key2);
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
